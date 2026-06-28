@@ -36,9 +36,18 @@ app.use('/api/notices', noticeRoutes);
 app.use('/api/notices/:noticeId/comments', commentRoutes);
 app.use('/api/notifications', notificationRoutes);
 
+let onlineCount = 0;
+
 io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
-  socket.on('disconnect', () => console.log('Client disconnected:', socket.id));
+  onlineCount++;
+  io.emit('online:count', onlineCount);
+  console.log('Client connected:', socket.id, '| Online:', onlineCount);
+
+  socket.on('disconnect', () => {
+    onlineCount = Math.max(0, onlineCount - 1);
+    io.emit('online:count', onlineCount);
+    console.log('Client disconnected:', socket.id, '| Online:', onlineCount);
+  });
 });
 
 const PORT = process.env.PORT || 5000;

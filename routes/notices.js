@@ -49,6 +49,31 @@ router.post('/', authMiddleware, async (req, res) => {
   }
 });
 
+// Get single notice
+router.get('/:id', async (req, res) => {
+  try {
+    const notice = await Notice.findById(req.params.id).populate(populateAuthor);
+    if (!notice) {
+      return res.status(404).json({ message: 'Notice not found' });
+    }
+    res.json(notice);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Get notices by user
+router.get('/user/:userId', async (req, res) => {
+  try {
+    const notices = await Notice.find({ author: req.params.userId })
+      .populate(populateAuthor)
+      .sort({ createdAt: -1 });
+    res.json(notices);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 router.patch('/:id/like', authMiddleware, async (req, res) => {
   try {
     const notice = await Notice.findById(req.params.id);
