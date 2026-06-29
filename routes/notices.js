@@ -15,7 +15,7 @@ const upload = multer({ storage });
 
 ensureStepOneNoticeFields(Notice);
 
-const populateAuthor = { path: 'author', select: 'name email' };
+const populateAuthor = { path: 'author', select: 'name email avatarUrl' };
 
 // Helper – verify user is a member of the given community
 async function assertMember(communityId, userId) {

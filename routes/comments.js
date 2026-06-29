@@ -6,7 +6,7 @@ const { createNotification } = require('../services/notificationService');
 
 const router = express.Router({ mergeParams: true });
 
-const populateAuthor = { path: 'author', select: 'name email' };
+const populateAuthor = { path: 'author', select: 'name email avatarUrl' };
 
 router.get('/', async (req, res) => {
   try {

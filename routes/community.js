@@ -135,6 +135,14 @@ router.delete('/:id', authMiddleware, async (req, res) => {
       }
     }
 
+    const Notice = require('../models/Notice');
+    const Comment = require('../models/Comment');
+    
+    // Delete notices and comments associated with this community
+    await Notice.deleteMany({ communityId: community._id });
+    await Comment.deleteMany({ communityId: community._id });
+
+    // Update all users who have this community as their active community
     await User.updateMany({ communityId: community._id }, { communityId: null });
     await Community.findByIdAndDelete(community._id);
 
