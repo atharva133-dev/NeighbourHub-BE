@@ -41,7 +41,11 @@ router.post('/', authMiddleware, async (req, res) => {
       content: content.trim(),
       notice: req.params.noticeId,
       author: req.user._id,
+      communityId: notice.communityId,
     });
+
+    notice.commentCount = (notice.commentCount || 0) + 1;
+    await notice.save();
 
     await comment.populate(populateAuthor);
     await createNotification({
@@ -54,7 +58,9 @@ router.post('/', authMiddleware, async (req, res) => {
       io: req.io,
     });
 
-    req.io.emit('comment:created', { noticeId: req.params.noticeId, comment });
+    req.io
+      .to(notice.communityId.toString())
+      .emit('comment:created', { noticeId: req.params.noticeId, comment });
     res.status(201).json(comment);
   } catch (err) {
     res.status(500).json({ message: err.message });

@@ -7,6 +7,20 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     password: { type: String, required: true, minlength: 6 },
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
+    bio: { type: String, trim: true, default: '' },
+    avatarUrl: { type: String, default: '' },
+    notificationPreferences: {
+      likes: { type: Boolean, default: true },
+      comments: { type: Boolean, default: true },
+      emergency: { type: Boolean, default: true },
+      emailAlerts: { type: Boolean, default: false },
+    },
+    privacySettings: {
+      showName: { type: Boolean, default: true },
+      publicProfile: { type: Boolean, default: true },
+      onlineStatus: { type: Boolean, default: true },
+    },
+    communityId: { type: mongoose.Schema.Types.ObjectId, ref: 'Community', default: null },
   },
   { timestamps: true }
 );

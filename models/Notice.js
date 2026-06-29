@@ -15,8 +15,12 @@ const noticeSchema = new mongoose.Schema(
       default: 'Medium',
     },
     author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    communityId: { type: mongoose.Schema.Types.ObjectId, ref: 'Community', required: true },
     pinned: { type: Boolean, default: false },
     likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    commentCount: { type: Number, default: 0 },
+    imageUrl: { type: String },
+    imagePublicId: { type: String },
   },
   { timestamps: true }
 );

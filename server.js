@@ -13,6 +13,8 @@ const authRoutes = require('./routes/auth');
 const noticeRoutes = require('./routes/notices');
 const commentRoutes = require('./routes/comments');
 const notificationRoutes = require('./routes/notifications');
+const userRoutes = require('./routes/users');
+const communityRoutes = require('./routes/community');
 
 const app = express();
 const server = http.createServer(app);
@@ -35,18 +37,59 @@ app.use('/api/auth', authRoutes);
 app.use('/api/notices', noticeRoutes);
 app.use('/api/notices/:noticeId/comments', commentRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/community', communityRoutes);
 
-let onlineCount = 0;
+// Track online users per community room
+// Map<communityId, Set<socketId>>
+const communityOnline = new Map();
+
+function getRoomCount(communityId) {
+  return communityOnline.get(communityId)?.size || 0;
+}
 
 io.on('connection', (socket) => {
-  onlineCount++;
-  io.emit('online:count', onlineCount);
-  console.log('Client connected:', socket.id, '| Online:', onlineCount);
+  console.log('Client connected:', socket.id);
+
+  // Client joins a community room
+  socket.on('community:join', (communityId) => {
+    if (!communityId) return;
+    const cid = communityId.toString();
+    socket.join(cid);
+
+    if (!communityOnline.has(cid)) communityOnline.set(cid, new Set());
+    communityOnline.get(cid).add(socket.id);
+
+    io.to(cid).emit('online:count', getRoomCount(cid));
+    console.log(`Socket ${socket.id} joined community ${cid} | Room online: ${getRoomCount(cid)}`);
+  });
+
+  // Client leaves a community room
+  socket.on('community:leave', (communityId) => {
+    if (!communityId) return;
+    const cid = communityId.toString();
+    socket.leave(cid);
+
+    communityOnline.get(cid)?.delete(socket.id);
+    if (communityOnline.get(cid)?.size === 0) communityOnline.delete(cid);
+
+    io.to(cid).emit('online:count', getRoomCount(cid));
+    console.log(`Socket ${socket.id} left community ${cid} | Room online: ${getRoomCount(cid)}`);
+  });
 
   socket.on('disconnect', () => {
-    onlineCount = Math.max(0, onlineCount - 1);
-    io.emit('online:count', onlineCount);
-    console.log('Client disconnected:', socket.id, '| Online:', onlineCount);
+    // Remove socket from all community rooms it was in
+    for (const [cid, sockets] of communityOnline.entries()) {
+      if (sockets.has(socket.id)) {
+        sockets.delete(socket.id);
+        if (sockets.size === 0) {
+          communityOnline.delete(cid);
+        } else {
+          io.to(cid).emit('online:count', sockets.size);
+        }
+      }
+    }
+    console.log('Client disconnected:', socket.id);
   });
 });
 
