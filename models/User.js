@@ -21,6 +21,9 @@ const userSchema = new mongoose.Schema(
       onlineStatus: { type: Boolean, default: true },
     },
     communityId: { type: mongoose.Schema.Types.ObjectId, ref: 'Community', default: null },
+    isVerified: { type: Boolean, default: false },
+    otp: { type: String, default: null },
+    otpExpiry: { type: Date, default: null },
   },
   { timestamps: true }
 );

@@ -16,6 +16,7 @@ const notificationRoutes = require('./routes/notifications');
 const userRoutes = require('./routes/users');
 const communityRoutes = require('./routes/community');
 const aiRoutes = require('./routes/ai');
+const translateRoutes = require('./routes/translate');
 
 const app = express();
 const server = http.createServer(app);
@@ -41,6 +42,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/community', communityRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/translate', translateRoutes);
 
 // Track online users per community room
 // Map<communityId, Set<socketId>>
