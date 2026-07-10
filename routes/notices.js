@@ -66,6 +66,19 @@ router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
       communityId,
     };
 
+    // Only run toxicity check if community has moderation enabled
+    if (check.community.moderationEnabled !== false) {
+      try {
+        const { checkToxicity } = require('../utils/toxicityCheck');
+        const isToxic = await checkToxicity(`${title} ${content}`);
+        if (isToxic) {
+          return res.status(400).json({ message: 'Your post was flagged for inappropriate content. Please revise it.' });
+        }
+      } catch (toxErr) {
+        console.warn('[toxicityCheck] skipped due to error:', toxErr.message);
+      }
+    }
+
     if (req.file) {
       noticeData.imageUrl = req.file.path;
       noticeData.imagePublicId = req.file.filename;

@@ -14,9 +14,15 @@ const noticeRoutes = require('./routes/notices');
 const commentRoutes = require('./routes/comments');
 const notificationRoutes = require('./routes/notifications');
 const userRoutes = require('./routes/users');
+const helperRoutes = require('./routes/helpers');
 const communityRoutes = require('./routes/community');
 const aiRoutes = require('./routes/ai');
 const translateRoutes = require('./routes/translate');
+const adminRoutes = require('./routes/admin');
+const amenityRoutes = require('./routes/amenities');
+const bookingRoutes = require('./routes/bookings');
+const cron = require('node-cron');
+const { cleanupOldNotices } = require('./jobs/cleanupOldNotices');
 
 const app = express();
 const server = http.createServer(app);
@@ -40,9 +46,13 @@ app.use('/api/notices', noticeRoutes);
 app.use('/api/notices/:noticeId/comments', commentRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/helpers', helperRoutes);
 app.use('/api/community', communityRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/translate', translateRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/community/:id/amenities', amenityRoutes);
+app.use('/api/bookings', bookingRoutes);
 
 // Track online users per community room
 // Map<communityId, Set<socketId>>
@@ -104,6 +114,19 @@ mongoose
   .then(() => {
     console.log('MongoDB connected');
     server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+    // Schedule daily cleanup at 2 AM
+    cron.schedule('0 2 * * *', () => {
+      console.log('[cron] Running scheduled notice cleanup...');
+      cleanupOldNotices().catch((err) =>
+        console.error('[cron] Cleanup failed:', err.message)
+      );
+    });
+
+    // Run once on startup to catch any missed cleanups (e.g. server was down at 2 AM)
+    cleanupOldNotices().catch((err) =>
+      console.error('[startup cleanup] Failed:', err.message)
+    );
   })
   .catch((err) => {
     console.error('MongoDB connection error:', err.message);

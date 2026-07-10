@@ -80,7 +80,7 @@ router.patch('/settings', authMiddleware, upload.single('avatar'), async (req, r
     }
 
     await user.save();
-    await user.populate('communityId', 'name code admin');
+    await user.populate('communityId', 'name code admin type');
     res.json(formatUser(user));
   } catch (err) {
     res.status(500).json({ message: err.message });

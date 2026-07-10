@@ -14,6 +14,11 @@ function formatCommunity(community, userId) {
     memberCount: community.members?.length || 0,
     isAdmin: adminId?.toString() === uid,
     createdAt: community.createdAt,
+    moderationEnabled: community.moderationEnabled !== false,
+    communityGuidelines: community.communityGuidelines || '',
+    type: community.type || 'other',
+    societyDetails: community.societyDetails || null,
+    institutionDetails: community.institutionDetails || null,
   };
 }
 

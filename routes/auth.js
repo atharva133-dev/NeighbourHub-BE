@@ -66,7 +66,7 @@ router.post('/verify-otp', async (req, res) => {
       return res.status(400).json({ message: 'Email and OTP are required' });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() }).populate('communityId', 'name code admin');
+    const user = await User.findOne({ email: email.toLowerCase() }).populate('communityId', 'name code admin type');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -133,7 +133,7 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() }).populate('communityId', 'name code admin');
+    const user = await User.findOne({ email: email.toLowerCase() }).populate('communityId', 'name code admin type');
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }

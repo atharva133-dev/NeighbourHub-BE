@@ -24,21 +24,59 @@ function isMember(community, userId) {
 
 router.post('/create', authMiddleware, upload.single('avatar'), async (req, res) => {
   try {
-    const { name, description } = req.body;
+    const { name, description, type, societyDetails, institutionDetails } = req.body;
 
     if (!name?.trim()) {
       return res.status(400).json({ message: 'Community name is required' });
     }
 
+    const COMMUNITY_TYPES = ['society', 'college_school', 'other'];
+    if (!type || !COMMUNITY_TYPES.includes(type)) {
+      return res.status(400).json({
+        message: `Community type is required and must be one of: ${COMMUNITY_TYPES.join(', ')}`,
+      });
+    }
+
     const code = await generateUniqueCode();
-    const community = await Community.create({
+
+    const communityData = {
       name: name.trim(),
       description: description?.trim() || '',
       code,
       admin: req.user._id,
       members: [req.user._id],
       avatar: req.file?.path || '',
-    });
+      type,
+    };
+
+    // Attach optional type-specific details if provided
+    const safeParse = (val) => {
+      if (!val) return null;
+      if (typeof val === 'object') return val;
+      try { return JSON.parse(val); } catch { return null; }
+    };
+
+    if (type === 'society') {
+      const parsed = safeParse(societyDetails);
+      if (parsed) {
+        communityData.societyDetails = {
+          totalUnits: parsed.totalUnits != null ? Number(parsed.totalUnits) : undefined,
+          hasSecurityGate: Boolean(parsed.hasSecurityGate),
+        };
+      }
+    }
+
+    if (type === 'college_school') {
+      const parsed = safeParse(institutionDetails);
+      if (parsed) {
+        communityData.institutionDetails = {
+          institutionName: parsed.institutionName?.trim() || undefined,
+          affiliatedBoard: parsed.affiliatedBoard?.trim() || undefined,
+        };
+      }
+    }
+
+    const community = await Community.create(communityData);
 
     await User.findByIdAndUpdate(req.user._id, { communityId: community._id });
 
@@ -147,6 +185,98 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     await Community.findByIdAndDelete(community._id);
 
     res.json({ message: 'Community deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Admin (community-level): update moderation settings + guidelines
+router.patch('/:id/settings', authMiddleware, async (req, res) => {
+  try {
+    // Fetch without population — we only need admin field for the check
+    const community = await Community.findById(req.params.id);
+
+    if (!community) {
+      return res.status(404).json({ message: 'Community not found' });
+    }
+
+    if (community.admin.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Only the community admin can change moderation settings' });
+    }
+
+    const { moderationEnabled, communityGuidelines } = req.body;
+    const updates = {};
+
+    if (typeof moderationEnabled === 'boolean') {
+      updates.moderationEnabled = moderationEnabled;
+    }
+    if (typeof communityGuidelines === 'string') {
+      updates.communityGuidelines = communityGuidelines.slice(0, 1000).trim();
+    }
+
+    const updated = await Community.findByIdAndUpdate(
+      req.params.id,
+      { $set: updates },
+      { new: true }
+    ).populate('admin', 'name');
+
+    res.json(formatCommunity(updated, req.user._id));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Admin (community-level): update type-specific details after creation
+router.patch('/:id/details', authMiddleware, async (req, res) => {
+  try {
+    const community = await Community.findById(req.params.id);
+
+    if (!community) {
+      return res.status(404).json({ message: 'Community not found' });
+    }
+
+    if (community.admin.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Only the community admin can update community details' });
+    }
+
+    const { societyDetails, institutionDetails } = req.body;
+    const updates = {};
+
+    if (societyDetails !== undefined) {
+      if (community.type !== 'society') {
+        return res.status(400).json({
+          message: 'societyDetails can only be set on a community of type "society"',
+        });
+      }
+      updates.societyDetails = {
+        totalUnits: societyDetails.totalUnits != null ? Number(societyDetails.totalUnits) : undefined,
+        hasSecurityGate: Boolean(societyDetails.hasSecurityGate),
+      };
+    }
+
+    if (institutionDetails !== undefined) {
+      if (community.type !== 'college_school') {
+        return res.status(400).json({
+          message: 'institutionDetails can only be set on a community of type "college_school"',
+        });
+      }
+      updates.institutionDetails = {
+        institutionName: institutionDetails.institutionName?.trim() || undefined,
+        affiliatedBoard: institutionDetails.affiliatedBoard?.trim() || undefined,
+      };
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ message: 'No valid details provided to update' });
+    }
+
+    const updated = await Community.findByIdAndUpdate(
+      req.params.id,
+      { $set: updates },
+      { new: true }
+    ).populate('admin', 'name');
+
+    res.json(formatCommunity(updated, req.user._id));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

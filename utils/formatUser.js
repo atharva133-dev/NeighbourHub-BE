@@ -19,6 +19,7 @@ function formatUser(user) {
     },
     createdAt: user.createdAt,
     communityId: user.communityId || null,
+    communityType: user.communityId?.type || null,
   };
 }
 
