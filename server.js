@@ -31,7 +31,10 @@ const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST', 'PATCH', 'DELETE'] },
 });
 
-app.use(cors());
+app.use(cors({
+  origin: ['https://neighbour1.vercel.app', 'http://localhost:3000', 'http://localhost:5173'],
+  credentials: true
+}));
 app.use(express.json());
 
 app.use((req, _res, next) => {
