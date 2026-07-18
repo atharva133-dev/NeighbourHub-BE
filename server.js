@@ -7,6 +7,10 @@ const mongoose = require('mongoose');
 
 // Use public DNS so mongodb+srv SRV lookups work when local DNS blocks them
 dns.setServers(['8.8.8.8', '8.8.4.4']);
+// Prefer IPv4 for outbound connections. Some hosts (e.g. Render) have no IPv6
+// outbound route, so resolving to an AAAA record first causes ENETUNREACH
+// (this was breaking Gmail SMTP / OTP email sending during registration).
+dns.setDefaultResultOrder('ipv4first');
 const { Server } = require('socket.io');
 
 const authRoutes = require('./routes/auth');

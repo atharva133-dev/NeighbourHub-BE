@@ -55,6 +55,7 @@ router.post('/register', async (req, res) => {
 
     res.status(201).json({ message: 'OTP sent', email: user.email });
   } catch (err) {
+    console.error('[register] failed:', err);
     res.status(500).json({ message: err.message });
   }
 });

@@ -8,11 +8,20 @@ const nodemailer = require('nodemailer');
  */
 async function sendOtpEmail(to, otp) {
   const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    // Force IPv4 — some hosts (e.g. Render) can't reach Gmail's IPv6 address
+    // and the connection hangs until it fails with ENETUNREACH (~120s).
+    family: 4,
     auth: {
       user: process.env.GMAIL_USER,
       pass: process.env.GMAIL_PASS,
     },
+    // Fail fast instead of blocking the request for two minutes.
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
   });
 
   await transporter.sendMail({
