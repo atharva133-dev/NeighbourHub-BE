@@ -227,4 +227,66 @@ router.delete('/users/:id', authMiddleware, adminMiddleware, async (req, res) =>
   }
 });
 
+// Google OAuth — verify Firebase ID token, create/find user, return JWT
+router.post('/google', async (req, res) => {
+  try {
+    const { idToken } = req.body;
+    if (!idToken) {
+      return res.status(400).json({ message: 'idToken is required' });
+    }
+
+    // Lazy-init firebase-admin so it only loads when this route is called
+    const admin = require('firebase-admin');
+    if (!admin.apps.length) {
+      const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
+        ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+        : null;
+
+      if (serviceAccount) {
+        admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+      } else {
+        // Fallback: use application default credentials (works on GCP / Firebase hosting)
+        admin.initializeApp({ credential: admin.credential.applicationDefault() });
+      }
+    }
+
+    // Verify the token Firebase gave the frontend
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const { email, name, picture, uid } = decoded;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Google account has no email address' });
+    }
+
+    // Find existing user or create a new verified one
+    let user = await User.findOne({ email: email.toLowerCase() }).populate('communityId', 'name code admin type');
+
+    if (!user) {
+      const role = email.toLowerCase() === process.env.ADMIN_EMAIL?.toLowerCase() ? 'admin' : 'user';
+      user = await User.create({
+        name: name || email.split('@')[0],
+        email: email.toLowerCase(),
+        password: uid, // Firebase UID as placeholder — user will never login with it
+        role,
+        avatarUrl: picture || '',
+        isVerified: true, // Google already verified the email
+      });
+      await user.populate('communityId', 'name code admin type');
+    } else if (!user.isVerified) {
+      // Existing unverified account — verify it now since Google confirmed the email
+      await User.updateOne({ _id: user._id }, { $set: { isVerified: true } });
+      user.isVerified = true;
+    }
+
+    const token = signToken(user);
+    res.json({ token, user: formatUser(user) });
+  } catch (err) {
+    console.error('[auth/google]', err.message);
+    if (err.code?.startsWith('auth/')) {
+      return res.status(401).json({ message: 'Invalid or expired Google token. Please try again.' });
+    }
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;

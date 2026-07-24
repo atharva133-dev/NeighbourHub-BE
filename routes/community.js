@@ -134,7 +134,7 @@ router.get('/my', authMiddleware, async (req, res) => {
 
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
-    const community = await Community.findById(req.params.id).populate('admin', 'name');
+    const community = await Community.findById(req.params.id).populate('admin', 'name _id');
 
     if (!community) {
       return res.status(404).json({ message: 'Community not found' });

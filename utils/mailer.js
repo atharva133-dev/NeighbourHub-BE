@@ -1,4 +1,28 @@
 const nodemailer = require('nodemailer');
+const dns = require('dns').promises;
+
+const SMTP_HOST = 'smtp.gmail.com';
+
+/**
+ * Resolve the SMTP host to an IPv4 address.
+ *
+ * Some hosts (e.g. Render) have no IPv6 outbound route. Nodemailer does its own
+ * DNS resolution internally and ignores the `family` option, so it would hand
+ * the socket an AAAA (IPv6) record and hang until ENETUNREACH (~120s). By
+ * resolving to IPv4 ourselves and passing the IP as `host`, nodemailer skips
+ * its resolver entirely and connects over IPv4. TLS still validates against the
+ * hostname via `tls.servername`.
+ *
+ * Falls back to the hostname if IPv4 resolution fails.
+ */
+async function resolveIpv4Host() {
+  try {
+    const { address } = await dns.lookup(SMTP_HOST, { family: 4 });
+    return address || SMTP_HOST;
+  } catch {
+    return SMTP_HOST;
+  }
+}
 
 /**
  * Send an OTP verification email.
@@ -7,17 +31,18 @@ const nodemailer = require('nodemailer');
  * @param {string} otp - 6-digit OTP string
  */
 async function sendOtpEmail(to, otp) {
+  const host = await resolveIpv4Host();
+
   const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
+    host,
     port: 465,
     secure: true,
-    // Force IPv4 — some hosts (e.g. Render) can't reach Gmail's IPv6 address
-    // and the connection hangs until it fails with ENETUNREACH (~120s).
-    family: 4,
     auth: {
       user: process.env.GMAIL_USER,
       pass: process.env.GMAIL_PASS,
     },
+    // `host` may be a raw IPv4 address; validate the cert against the real name.
+    tls: { servername: SMTP_HOST },
     // Fail fast instead of blocking the request for two minutes.
     connectionTimeout: 10000,
     greetingTimeout: 10000,
