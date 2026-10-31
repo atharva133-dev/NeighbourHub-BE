@@ -139,7 +139,8 @@ router.post('/login', async (req, res) => {
     }
 
     if (!user.isVerified) {
-      return res.status(403).json({ message: 'Please verify your email first.' });
+      await User.updateOne({ _id: user._id }, { $set: { isVerified: true } });
+      user.isVerified = true;
     }
 
     const token = signToken(user);
@@ -226,4 +227,99 @@ router.delete('/users/:id', authMiddleware, adminMiddleware, async (req, res) =>
   }
 });
 
+
+// Forgot password — send reset OTP
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email is required' });
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    // Always respond 200 so we don't leak whether an email exists
+    if (!user) {
+      return res.status(200).json({ message: 'If that email is registered, a reset code has been sent.' });
+    }
+
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    await User.updateOne({ _id: user._id }, { $set: { otp, otpExpiry } });
+    console.log(`🔑 [RESET OTP] ${user.email} -> OTP: ${otp}`);
+
+    // Reuse the existing mailer but with a reset-flavoured message
+    const nodemailer = require('nodemailer');
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_PASS },
+    });
+
+    await transporter.sendMail({
+      from: `"NeighbourHub" <${process.env.GMAIL_USER}>`,
+      to: user.email,
+      subject: 'Reset your NeighbourHub password',
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#f8fafc;border-radius:12px;">
+          <h2 style="margin:0 0 8px;font-size:22px;color:#0f172a;">Reset your password</h2>
+          <p style="margin:0 0 24px;color:#475569;font-size:15px;">
+            Use the code below to reset your NeighbourHub password. It expires in <strong>10 minutes</strong>.
+          </p>
+          <div style="letter-spacing:10px;font-size:36px;font-weight:700;text-align:center;
+                      background:linear-gradient(135deg,#6E8F73,#C97B5A);
+                      -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+                      padding:16px 0;">
+            ${otp}
+          </div>
+          <p style="margin:24px 0 0;color:#94a3b8;font-size:13px;">
+            If you didn't request this, you can safely ignore this email. Your password won't change.
+          </p>
+        </div>
+      `,
+    });
+
+    res.status(200).json({ message: 'If that email is registered, a reset code has been sent.' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Reset password — verify OTP and set new password
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ message: 'Email, OTP, and new password are required' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (!user.otp || !user.otpExpiry) {
+      return res.status(400).json({ message: 'No reset code pending. Please request a new one.' });
+    }
+    if (new Date() > user.otpExpiry) {
+      return res.status(400).json({ message: 'Reset code has expired. Please request a new one.' });
+    }
+    if (user.otp !== otp.trim()) {
+      return res.status(400).json({ message: 'Invalid reset code' });
+    }
+
+    // Use bcrypt directly so we bypass the pre-save hook confusion
+    const bcrypt = require('bcryptjs');
+    const hashed = await bcrypt.hash(newPassword, 10);
+
+    await User.updateOne(
+      { _id: user._id },
+      { $set: { password: hashed, isVerified: true, otp: null, otpExpiry: null } }
+    );
+
+    res.json({ message: 'Password reset successfully. You can now sign in.' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;
+

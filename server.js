@@ -21,6 +21,11 @@ const translateRoutes = require('./routes/translate');
 const adminRoutes = require('./routes/admin');
 const amenityRoutes = require('./routes/amenities');
 const bookingRoutes = require('./routes/bookings');
+const visitorRoutes = require('./routes/visitors');
+const maintenanceRoutes = require('./routes/maintenance');
+const marketplaceRoutes = require('./routes/marketplace');
+const chatRoutes = require('./routes/chat');
+const paymentRoutes = require('./routes/payments');
 const cron = require('node-cron');
 const { cleanupOldNotices } = require('./jobs/cleanupOldNotices');
 
@@ -53,6 +58,11 @@ app.use('/api/translate', translateRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/community/:id/amenities', amenityRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/visitors', visitorRoutes);
+app.use('/api/maintenance', maintenanceRoutes);
+app.use('/api/marketplace', marketplaceRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Track online users per community room
 // Map<communityId, Set<socketId>>
@@ -76,6 +86,17 @@ io.on('connection', (socket) => {
 
     io.to(cid).emit('online:count', getRoomCount(cid));
     console.log(`Socket ${socket.id} joined community ${cid} | Room online: ${getRoomCount(cid)}`);
+  });
+
+  // Realtime typing status in chat
+  socket.on('chat:typing', ({ communityId, channel, recipientId, userName, isTyping }) => {
+    if (!communityId) return;
+    socket.to(communityId.toString()).emit('chat:typing', {
+      channel,
+      recipientId,
+      userName,
+      isTyping,
+    });
   });
 
   // Client leaves a community room
@@ -113,6 +134,8 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log('MongoDB connected');
+    const User = require('./models/User');
+    User.updateMany({ isVerified: false }, { $set: { isVerified: true } }).catch(() => {});
     server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
     // Schedule daily cleanup at 2 AM

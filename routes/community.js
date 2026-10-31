@@ -78,13 +78,17 @@ router.post('/create', authMiddleware, upload.single('avatar'), async (req, res)
 
     const community = await Community.create(communityData);
 
-    await User.findByIdAndUpdate(req.user._id, { communityId: community._id });
+    await User.findByIdAndUpdate(req.user._id, { communityId: community._id, role: 'admin' });
 
     const populated = await Community.findById(community._id)
       .populate('admin', 'name')
       .populate('members', 'name');
 
-    res.status(201).json(formatCommunity(populated, req.user._id));
+    // Return updated user so frontend can refresh auth state immediately
+    const updatedUser = await User.findById(req.user._id).select('-password -otp -otpExpiry');
+
+    res.status(201).json({ community: formatCommunity(populated, req.user._id), user: updatedUser });
+
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

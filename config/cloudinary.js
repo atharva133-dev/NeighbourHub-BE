@@ -11,7 +11,7 @@ const storage = new CloudinaryStorage({
   cloudinary,
   params: {
     folder: 'neighbourhub/notices',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'gif'],
+    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'jfif', 'svg', 'heic'],
     transformation: [{ width: 1200, crop: 'limit' }],
   },
 });
@@ -20,7 +20,7 @@ const avatarStorage = new CloudinaryStorage({
   cloudinary,
   params: {
     folder: 'neighbourhub/avatars',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'jfif', 'svg', 'heic'],
     transformation: [{ width: 400, height: 400, crop: 'fill', gravity: 'face' }],
   },
 });
@@ -29,7 +29,7 @@ const communityStorage = new CloudinaryStorage({
   cloudinary,
   params: {
     folder: 'neighbourhub/communities',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'jfif', 'svg', 'heic'],
     transformation: [{ width: 400, height: 400, crop: 'fill' }],
   },
 });

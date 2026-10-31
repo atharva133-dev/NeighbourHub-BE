@@ -3,6 +3,7 @@ const multer = require('multer');
 const Notice = require('../models/Notice');
 const Comment = require('../models/Comment');
 const Community = require('../models/Community');
+const User = require('../models/User');
 const { authMiddleware, adminMiddleware } = require('../middleware/authMiddleware');
 const { sendEmergencyNoticeEmail } = require('../services/emailService');
 const { createNotification } = require('../services/notificationService');
@@ -13,6 +14,16 @@ const router = express.Router();
 
 const upload = multer({ storage });
 
+const uploadSingleImage = (req, res, next) => {
+  upload.single('image')(req, res, (err) => {
+    if (err) {
+      console.error('[Multer/Cloudinary Notice Upload Error]:', err);
+      return res.status(400).json({ message: err.message || 'Image upload failed. Please try a different image.' });
+    }
+    next();
+  });
+};
+
 ensureStepOneNoticeFields(Notice);
 
 const populateAuthor = { path: 'author', select: 'name email avatarUrl' };
@@ -21,8 +32,19 @@ const populateAuthor = { path: 'author', select: 'name email avatarUrl' };
 async function assertMember(communityId, userId) {
   const community = await Community.findById(communityId);
   if (!community) return { ok: false, status: 404, message: 'Community not found' };
-  const isMember = community.members.some((m) => m.toString() === userId.toString());
-  if (!isMember) return { ok: false, status: 403, message: 'You are not a member of this community' };
+
+  const isAdmin = community.admin?.toString() === userId.toString();
+  const isMember = community.members?.some((m) => m.toString() === userId.toString());
+
+  if (!isMember && !isAdmin) {
+    const user = await User.findById(userId);
+    if (user && (user.role === 'admin' || user.communityId?.toString() === communityId.toString())) {
+      community.members.push(userId);
+      await community.save();
+      return { ok: true, community };
+    }
+    return { ok: false, status: 403, message: 'You are not a member of this community' };
+  }
   return { ok: true, community };
 }
 
@@ -45,9 +67,9 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
+router.post('/', authMiddleware, uploadSingleImage, async (req, res) => {
   try {
-    const { title, content, category, communityId } = req.body;
+    const { title, content, category, priority, communityId } = req.body;
     if (!title || !content) {
       return res.status(400).json({ message: 'Title and content are required' });
     }
@@ -62,6 +84,7 @@ router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
       title,
       content,
       category: category || 'General',
+      priority: priority || 'Medium',
       author: req.user._id,
       communityId,
     };
@@ -94,6 +117,7 @@ router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
     req.io.to(communityId).emit('notice:created', notice);
     res.status(201).json(notice);
   } catch (err) {
+    console.error('Notice creation error:', err);
     res.status(500).json({ message: err.message });
   }
 });

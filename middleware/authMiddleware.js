@@ -16,6 +16,16 @@ const authMiddleware = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({ message: 'User not found' });
     }
+
+    // Auto-fix: if user is the admin of their active community but role is 'user', promote them
+    if (
+      user.role === 'user' &&
+      user.communityId?.admin?.toString() === user._id.toString()
+    ) {
+      user.role = 'admin';
+      await User.findByIdAndUpdate(user._id, { role: 'admin' });
+    }
+
     req.user = user;
     next();
   } catch {

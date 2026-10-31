@@ -9,15 +9,11 @@ const router = express.Router({ mergeParams: true });
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
-/** Fetch community and assert it is a society. Returns community or sends error + null. */
+/** Fetch community and return it (works for ALL community types). Returns community or sends error + null. */
 async function assertSociety(req, res) {
   const community = await Community.findById(req.params.id);
   if (!community) {
     res.status(404).json({ message: 'Community not found' });
-    return null;
-  }
-  if (community.type !== 'society') {
-    res.status(400).json({ message: 'Amenities are only available for Society communities' });
     return null;
   }
   return community;
